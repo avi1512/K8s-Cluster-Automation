@@ -1,0 +1,52 @@
+---
+ - name: Velero Backup For K8S Setup Play
+   hosts: k8s-master
+   gather_facts: false
+   
+   tasks:
+     - name: checking Velero tool is installed or not
+       shell: whereis velero | egrep -o "/usr/local/bin/velero|/usr/bin/velero"
+       register: out
+       failed_when: false
+       changed_when: false
+     
+     - name: Installing Velero Tool
+       shell: |
+               yum install wget -y
+               wget https://github.com/vmware-tanzu/velero/releases/download/v1.8.1/velero-v1.8.1-linux-amd64.tar.gz
+               tar -zxf velero-v1.8.1-linux-amd64.tar.gz
+               mv velero-v1.8.1-linux-amd64/velero /usr/local/bin/
+       when: "'velero' not in out.stdout"
+  
+     - debug:
+         msg: Already Velero tool is installed
+       when: "'velero' in out.stdout"
+
+
+     - name: Checking Minio API Storage is Installed in K8S
+       shell: kubectl get ns minio
+       register: result
+       failed_when: false
+       changed_when: false
+
+
+     - name: Creating Minio Secret File for Velero 
+       shell: |
+               touch /root/minio.secret
+               cat <<EOF>> /root/minio.secret
+               [default]
+               aws_access_key_id=admin
+               aws_secret_access_key=P@ssw0rd
+               EOF
+       when: 'result.stdout != ""'
+
+      
+     - name: Installing Velero 
+       shell: |
+               velero install --provider aws --bucket kubedata --secret-file /root/minio.secret --backup-location-config region=minio,s3ForcePathStyle=true,s3Url=http://192.168.59.150:32000 --use-volume-snapshots=false --plugins=velero/velero-plugin-for-aws:v1.1.0 --use-restic
+       when: 'result.stdout != ""'
+     
+
+     - debug:
+         msg: Need To Install Minio API Storage
+       when: 'result.stdout == ""'

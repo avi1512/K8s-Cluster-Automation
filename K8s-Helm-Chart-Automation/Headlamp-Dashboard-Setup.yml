@@ -1,0 +1,21 @@
+---
+ - name: HeadLamp Dashboard Setup Play
+   hosts: kmaster
+   gather_facts: false
+
+   tasks:
+     - name: Deploying Headlamp With Nodeport Service
+       shell:
+             |
+              kubectl create -f https://raw.githubusercontent.com/avi1512/Headlamp-Dashboard-Yamls/main/headlamp-dashboard.yml > /tmp/headlamp.outs
+
+     - name: Create a Service Account
+       command: kubectl -n kube-system create serviceaccount headlamp-admin
+
+     - name: Create Cluster Role Binding
+       command: kubectl create clusterrolebinding headlamp-admin --serviceaccount=kube-system:headlamp-admin --clusterrole=cluster-admin
+
+     - name: Fetching Secret Authentication token
+       command: kubectl -n kube-system describe secret headlamp-admin
+       register: out
+     - debug: var=out.stdout_lines

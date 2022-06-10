@@ -1,0 +1,67 @@
+---
+ - name: Prometheus And Grafana Stack Setup Play
+   hosts: k8s-master
+   gather_facts: false
+   
+   tasks:
+     - name: checking Helm tool is installed or not
+       shell: whereis helm | egrep -o "/usr/local/bin/helm|/usr/bin/helm"
+       register: out
+       failed_when: false
+       changed_when: false
+     
+     - name: Installing Helm tool
+       shell: |
+               yum install wget -y
+               wget https://get.helm.sh/helm-v3.6.3-linux-amd64.tar.gz
+               tar -zxf helm-v3.6.3-linux-amd64.tar.gz
+               mv linux-amd64/helm /usr/local/bin/
+       when: "'helm' not in out.stdout"
+  
+     - debug:
+         msg: Already Helm tool is installed
+       when: "'helm' in out.stdout"
+
+
+#     - name: Checking Persistence StorageClass Installed in K8S
+#       shell: kubectl get sc
+#       register: result
+
+     - name: Creating new namespace for Prometheus
+       command: kubectl create ns prometheus
+#       when: 'result.stdout != ""'
+
+      
+     - name: Adding Prometheus repo and updating helm repo
+       shell: |
+               helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+               helm repo update
+#       when: 'result.stdout != ""'
+     
+
+     - name: Installing Prometheus And Grafana
+       shell: |
+               helm install prometheus prometheus-community/kube-prometheus-stack -n prometheus
+#       when: 'result.stdout != ""'
+   
+     - name: Replace Grafana Service ClusterIP To NodePort
+       shell: "kubectl get svc prometheus-grafana -n prometheus -o yaml | sed 's/type: ClusterIP/type: NodePort/g' | kubectl replace -f -"
+
+     - name: Replace Promethus-Alertmanager Service ClusterIP To NodePort
+       shell: "kubectl get svc prometheus-kube-prometheus-alertmanager -n prometheus -o yaml | sed 's/type: ClusterIP/type: NodePort/g' | kubectl replace -f -"
+
+
+     - name: Replace Promethus Service ClusterIP To NodePort
+       shell: "kubectl get svc prometheus-kube-prometheus-prometheus -n prometheus -o yaml | sed 's/type: ClusterIP/type: NodePort/g' | kubectl replace -f -"
+
+
+     - name: Verify Installation
+       shell: |
+               helm list -A
+       register: outs
+     - debug: var=outs.stdout_lines
+#       when: 'result.stdout != ""'
+
+#     - debug:
+#         msg: Need To Install Persistence Volume Like NFS Storage or LongHorn Storage
+#       when: 'result.stdout == ""'

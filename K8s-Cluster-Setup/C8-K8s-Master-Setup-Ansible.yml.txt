@@ -1,0 +1,190 @@
+---
+ - name: Installing and Configuring Kubernetes Cluster For Master Nodes
+   hosts: k8s-master
+   gather_facts: true
+
+   tasks:
+     - name: Prerequstites of Kubernetes Cluster for RedHat 8
+       shell: |
+               swapoff -av
+               sed -i '/\bswap\b/ s/^/#/' /etc/fstab
+               sed -i s/^SELINUX=enforcing/SELINUX=disabled/g /etc/selinux/config
+               sed -i s/^SELINUX=permissive/SELINUX=disabled/g /etc/selinux/config
+               systemctl disable firewalld
+               systemctl stop firewalld
+               modprobe br_netfilter
+               touch /etc/yum.repos.d/C7.repo
+               touch /etc/yum.repos.d/K8s.repo
+               mkdir /etc/docker
+               touch /etc/docker/daemon.json
+               cat << EOF > /etc/docker/daemon.json
+               {
+                "exec-opts": ["native.cgroupdriver=systemd"]
+               }
+               EOF
+       when: ansible_facts['os_family'] == "RedHat"
+       tags: "1"
+
+
+     - name: Prerequstites of Kubernetes Cluster for Ubuntu
+       shell: |
+               swapoff -av
+               sed -i '/\bswap\b/ s/^/#/' /etc/fstab
+               ufw disable
+               mkdir /etc/docker
+               touch /etc/docker/daemon.json
+               cat << EOF > /etc/docker/daemon.json
+               {
+                "exec-opts": ["native.cgroupdriver=systemd"]
+               }
+               EOF
+       when: ansible_facts['os_family'] == "Debian"
+       tags: "2"
+
+
+     - name: Prequest completed rebooting Server and after continue task
+       shell: reboot
+       async: 1
+       poll: 0
+       tags: "3"
+#       when: ansible_facts['os_family'] == "RedHat"
+#       when: ansible_facts['os_family'] == "Debian"
+
+
+     - name: Waiting for server back online
+       wait_for_connection:
+         connect_timeout: 20
+         sleep: 5
+         delay: 5
+         timeout: 300
+       tags: "4"
+#       when: ansible_facts['os_family'] == "RedHat"
+#       when: ansible_facts['os_family'] == "Debian"
+
+
+     - name: Adding Docker & K8s repo for Ubuntu
+       shell: |
+               apt update -y
+               apt install apt-transport-https ca-certificates curl software-properties-common -y
+               curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+               add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable"
+               curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add
+               apt-add-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+               apt update -y
+       when: ansible_facts['os_family'] == "Debian"
+       tags: "5"
+
+     
+     - name: Adding Docker repo for RedHat 8
+       shell: |
+               dnf config-manager --add-repo=https://download.docker.com/linux/centos/docker-ce.repo
+               
+
+     - name: Adding K8s repo for RedHat 8
+       blockinfile:
+         dest: /etc/yum.repos.d/K8s.repo
+         block:
+               |
+                [kubernetes]
+                name=Kubernetes
+                baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+                enabled=1
+                gpgcheck=1
+                repo_gpgcheck=1
+                gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg
+                       https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+       when: ansible_facts['os_family'] == "RedHat"
+       tags: "7"
+
+     - name: Installing kubernetes and docker packages for RedHat 8
+       yum:
+         name: "{{ item }}"
+         state: latest
+       with_items:
+         - docker-ce
+         - kubeadm-1.23.6
+         - kubectl-1.23.6
+         - kubelet-1.23.6
+       when: ansible_facts['os_family'] == "RedHat"
+       tags: "8"
+
+     - name: Installing Kubernetes and docker packages for Ubuntu
+       apt:
+         name: "{{ item }}"
+         state: latest
+       with_items:
+         - docker-ce
+         - kubeadm
+         - kubectl
+         - kubelet
+         - sshpass
+       when: ansible_facts['os_family'] == "Debian"
+       tags: "9"
+
+     - name: Configuring Kubernetes Cluster for RedHat 8
+       shell: |
+               systemctl enable docker kubelet
+               systemctl start docker kubelet
+               echo 1 > /proc/sys/net/bridge/bridge-nf-call-iptables
+               echo 1 > /proc/sys/net/bridge/bridge-nf-call-ip6tables
+               kubeadm init --pod-network-cidr=10.244.0.0/16 --ignore-preflight-errors=all > /tmp/kube.outs
+               mkdir -p $HOME/.kube
+               cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+               chown $(id -u):$(id -g) $HOME/.kube/config
+               #Kubernetes Network Plugins CNI (Flannel)
+               #kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+               #Kubernetes Network Plugins CNI (Calico)
+               kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+       when: ansible_facts['os_family'] == "RedHat"
+       tags: "10"
+
+     - name: Configuring Kubernetes Cluster for Ubuntu
+       shell: |
+               systemctl enable docker kubelet
+               systemctl start docker kubelet
+               kubeadm init --pod-network-cidr=10.244.0.0/16 --ignore-preflight-errors=all > /tmp/kube.outs
+               mkdir -p $HOME/.kube
+               cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+               chown $(id -u):$(id -g) $HOME/.kube/config
+               #Kubernetes Network Plugins CNI (Flannel)
+               #kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+               #Kubernetes Network Plugins CNI (Calico)
+               kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+       when: ansible_facts['os_family'] == "Debian"
+       tags: "11"
+
+
+     - name: Generate API token for Kubernetes worker nodes to join K8S master
+       shell: |
+               kubeadm token create --print-join-command > /etc/kubernetes/joincluster.sh 2>/dev/null
+       tags: "12"
+
+
+ - hosts: k8s-master
+   tasks:
+     - name: Fetch API Token From K8S Master To Ansible Controller
+       fetch:
+         src: /etc/kubernetes/joincluster.sh
+         dest: /tmp/
+         flat: yes
+       tags: "13"
+
+ - hosts: k8s-nodes
+   tasks:
+     - name: Copy API Token From Ansible Controller To K8S Worker Nodes
+       copy:
+         src: /tmp/joincluster.sh
+         dest: /tmp/
+       tags: "14"
+
+ - hosts: localhost
+   tasks:
+     - name: Remove API Token From Ansible Controller
+       file:
+         path: /tmp/joincluster.sh
+         state: absent
+       tags: "15"
+
+     - debug:
+         msg: Cluster is ready to use
+       tags: "16"

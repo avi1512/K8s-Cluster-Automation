@@ -1,0 +1,22 @@
+---
+ - name: Setup K8S Dashboard
+   hosts: k8s-master
+   gather_facts: true
+  
+   tasks:
+     - name: Configuring K8S Dashboard Setup
+       shell: |
+               kubectl create -f https://raw.githubusercontent.com/avi1512/K8S-Dashboard-Yamls/main/K8s-Dashboard.yml > /tmp/dashboard1.outs
+
+     - name: Adding K8S Dashboard Service Account for Cluster Admin
+       shell: |
+               kubectl create -f https://raw.githubusercontent.com/avi1512/K8S-Dashboard-Yamls/main/K8S-dashboard-SA-Cluster-Admin.yml > /tmp/dashboard2.outs
+
+
+     - name: Modify Dashboard Service To NodePort
+       shell: "kubectl get svc kubernetes-dashboard -n kubernetes-dashboard -o yaml | sed 's/type: ClusterIP/type: NodePort/g' | kubectl replace -f -"
+
+     - name: Fetching API Token For the Dashboard Service Account
+       command: kubectl describe secret dashboard-admin -n kube-system
+       register: outs
+     - debug: var=outs.stdout_lines

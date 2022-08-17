@@ -1,0 +1,24 @@
+---
+ - name: Argo Rollouts Setup Play
+   hosts: k8s-master
+   gather_facts: false
+   
+   tasks:
+     - name: Creating new namespace for Argo Rollout
+       command: kubectl create ns argo-rollouts
+     
+     - name: Installing Argo Rollouts
+       shell: kubectl apply -n argo-rollouts -f https://github.com/argoproj/argo-rollouts/releases/latest/download/install.yaml > /tmp/argo-rollouts.outs
+ 
+     - name: Downloading Argo Rollout Binary for Dashboard
+       shell: |
+               curl -LO https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64
+               chmod +x kubectl-argo-rollouts-linux-amd64
+               mv kubectl-argo-rollouts-linux-amd64 /usr/local/bin/kubectl-argo-rollouts
+
+     - name: Verify Installation
+       shell: |
+               sleep 10
+               kubectl get all -n argo-rollouts
+       register: outs
+     - debug: var=outs.stdout_lines

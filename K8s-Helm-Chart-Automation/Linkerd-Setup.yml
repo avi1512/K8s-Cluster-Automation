@@ -1,0 +1,40 @@
+---
+ - name: Linkerd Setup Play
+   hosts: kind
+   gather_facts: false
+
+   tasks:
+   - name: Download Linkerd Binary and Setup To Env
+     shell:
+           |
+            curl --proto '=https' --tlsv1.2 -sSfL https://run.linkerd.io/install | sh
+            mv /root/.linkerd2/bin/linkerd-stable-* /usr/bin/linkerd
+
+   - name: Validate K8s Cluster Before Install Linkerd Control Plane
+     shell:
+           |
+            linkerd check --pre
+     register: pre-outs
+   - debug: var=pre-outs.stdout_lines
+
+
+   - name: Installing Linkerd
+     shell:
+           |
+            linkerd install --crds | kubectl apply -f -
+            linkerd install | kubectl apply -f -
+
+   - name: Verify Installation 
+     shell:
+           |
+            linkerd check
+     register: verify-outs
+   - debug: var=verify-outs.stdout_lines
+
+
+   - name: Installing Linkerd VIZ Dashboard
+     shell:
+           |
+            linkerd viz install > linkerd-viz.yml
+            sed -i 's/.enforced-host.*/-enforced-host=.*/g' linkerd-viz.yml
+            kubectl create -f linkerd-viz.yml

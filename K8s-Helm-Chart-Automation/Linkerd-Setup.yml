@@ -14,8 +14,8 @@
      shell:
            |
             linkerd check --pre
-     register: pre-outs
-   - debug: var=pre-outs.stdout_lines
+     register: pre
+   - debug: var=pre.stdout_lines
 
 
    - name: Installing Linkerd
@@ -28,8 +28,8 @@
      shell:
            |
             linkerd check
-     register: verify-outs
-   - debug: var=verify-outs.stdout_lines
+     register: verify
+   - debug: var=verify.stdout_lines
 
 
    - name: Installing Linkerd VIZ Dashboard

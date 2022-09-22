@@ -22,7 +22,7 @@
        shell: |
                curl -LO https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.18.2/kubeseal-0.18.2-linux-amd64.tar.gz
                mv kubeseal-0.18.2-linux-amd64.tar.gz /tmp/
-               tar -zxvf /tmp/kubeseal-0.18.2-linux-amd64.tar.gz
+               tar -zxvf /tmp/kubeseal-0.18.2-linux-amd64.tar.gz -C /tmp/
                mv /tmp/kubeseal /usr/bin/
 
      - name: Setup Kubeseal Controller

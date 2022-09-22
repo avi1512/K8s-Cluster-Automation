@@ -1,0 +1,37 @@
+---
+ - name: Kubeseal Setup Play
+   hosts: kind
+   gather_facts: false
+   
+   tasks:
+     - name: checking Helm tool is installed or not
+       shell: whereis helm | egrep -o "/usr/local/bin/helm|/usr/bin/helm"
+       register: out
+       failed_when: false
+       changed_when: false
+     
+     - name: Installing Helm tool
+       shell: |
+               yum install wget -y
+               wget https://get.helm.sh/helm-v3.8.1-linux-amd64.tar.gz 
+               tar -zxf helm-v3.8.1-linux-amd64.tar.gz
+               mv linux-amd64/helm /usr/local/bin/
+       when: "'helm' not in out.stdout"
+
+     - name: Setup Kubeseal Binary
+       shell: |
+               curl -LO https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.18.2/kubeseal-0.18.2-linux-amd64.tar.gz
+               mv kubeseal-0.18.2-linux-amd64.tar.gz /tmp/
+               tar -zxvf /tmp/kubeseal-0.18.2-linux-amd64.tar.gz
+               mv /tmp/kubeseal /usr/bin/
+
+     - name: Setup Kubeseal Controller
+       shell: |
+               helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
+               helm install sealed-secrets -n kube-system --set-string fullnameOverride=sealed-secrets-controller sealed-secrets/sealed-secrets
+
+     - name: Verify Installation
+       shell: |
+               helm list --all-namespaces
+       register: outs
+     - debug: var=outs.stdout_lines  

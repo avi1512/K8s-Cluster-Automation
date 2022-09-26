@@ -1,6 +1,6 @@
 ---
  - name: Linkerd Setup Play
-   hosts: k8smaster
+   hosts: kind
    gather_facts: false
 
    tasks:
@@ -18,37 +18,11 @@
    - debug: var=pre.stdout_lines
 
 
-   - name: checking Helm tool is installed or not
-     shell: whereis helm | egrep -o "/usr/local/bin/helm|/usr/bin/helm"
-     register: out
-     failed_when: false
-     changed_when: false
-
-
-   - name: Installing Helm tool
-     shell: |
-             yum install wget -y
-             wget https://get.helm.sh/helm-v3.8.1-linux-amd64.tar.gz
-             tar -zxf helm-v3.8.1-linux-amd64.tar.gz
-             mv linux-amd64/helm /usr/local/bin/
-     when: "'helm' not in out.stdout"
-
-
-   - name: Installing Linkerd CNI Through Helm
-     shell:
-           |
-            helm repo add linkerd https://helm.linkerd.io/stable
-            helm install linkerd-cni -n linkerd-cni --create-namespace linkerd/linkerd2-cni
-            sleep 1m
-
-
    - name: Installing Linkerd
      shell:
            |
             linkerd install --crds | kubectl apply -f -
-            linkerd install --linkerd-cni-enabled --set proxyInit.runAsRoot=true | kubectl apply -f -
-            sleep 2m
-
+            linkerd install | kubectl apply -f -
 
    - name: Verify Installation 
      shell:

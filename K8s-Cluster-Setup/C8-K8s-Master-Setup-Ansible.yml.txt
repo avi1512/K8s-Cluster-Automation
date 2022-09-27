@@ -114,9 +114,9 @@
          state: latest
        with_items:
          - docker-ce
-         - kubeadm-1.23.6
-         - kubectl-1.23.6
-         - kubelet-1.23.6
+         - kubeadm
+         - kubectl
+         - kubelet
        when: ansible_facts['os_family'] == "RedHat"
        tags: "8"
 
@@ -137,6 +137,8 @@
        shell: |
                systemctl enable docker kubelet
                systemctl start docker kubelet
+               sed -i 's/disabled_plugins/#disabled_plugins/g' /etc/containerd/config.toml
+               systemctl restart containerd
                echo 1 > /proc/sys/net/bridge/bridge-nf-call-iptables
                echo 1 > /proc/sys/net/bridge/bridge-nf-call-ip6tables
                kubeadm init --pod-network-cidr=10.244.0.0/16 --ignore-preflight-errors=all > /tmp/kube.outs

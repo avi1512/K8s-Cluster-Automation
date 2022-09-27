@@ -1,0 +1,27 @@
+---
+ - name: Istio Setup Play
+   hosts: k8smaster
+   gather_facts: false
+   
+   tasks:
+     - name: Setup Istio and Dashboard Addons
+       shell: |
+               curl -L https://istio.io/downloadIstio | sh -
+               cp -rp istio-*/bin/istioctl /usr/bin/.
+               istioctl install --set profile=default -y
+               kubectl create -f istio-*/samples/addons/prometheus.yaml
+               kubectl create -f istio-*/samples/addons/grafana.yaml
+               kubectl create -f istio-*/samples/addons/kiali.yaml
+               kubectl create -f istio-*/samples/addons/jaeger.yaml
+   
+     - name: Replace Grafana Service ClusterIP To NodePort
+       shell: "kubectl get svc grafana -n istio-system -o yaml | sed 's/type: ClusterIP/type: NodePort/g' | kubectl replace -f -"
+
+     - name: Replace Promethus Service ClusterIP To NodePort
+       shell: "kubectl get svc prometheus -n istio-system -o yaml | sed 's/type: ClusterIP/type: NodePort/g' | kubectl replace -f -"
+
+     - name: Replace Kiali Service ClusterIP To NodePort
+       shell: "kubectl get svc kiali -n istio-system -o yaml | sed 's/type: ClusterIP/type: NodePort/g' | kubectl replace -f -"
+
+     - name: Replace Jaeger Service ClusterIP To NodePort
+       shell: "kubectl get svc tracing -n istio-system -o yaml | sed 's/type: ClusterIP/type: NodePort/g' | kubectl replace -f -"

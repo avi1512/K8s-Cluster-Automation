@@ -1,6 +1,6 @@
 ---
  - name: Metrics Server API Setup Play
-   hosts: k8s-master
+   hosts: k8smaster
    gather_facts: false
    
    tasks:
@@ -33,6 +33,13 @@
      - name: Installing Metrics API server
        shell: |
                helm upgrade --install metrics-server bitnami/metrics-server -n metrics-server --set apiService.create=true --set --extraArgs.kubelet-insecure-tls=true --set --extraArgs.kubelet-preferred-address-types=InternalIP
+
+#### If Helm Chart Values are not applied properly. We need to manually edit Metrics Server Deployment like below #####
+#### In Command Container Spec Section Need to add below two values #####
+#command:
+#- --kubelet-insecure-tls=true
+#- --kubelet-preferred-address-types=InternalIP
+
 
      - name: Verify Installation
        shell: |

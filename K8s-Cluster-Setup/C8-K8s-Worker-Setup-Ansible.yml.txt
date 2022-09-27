@@ -1,6 +1,6 @@
 ---
  - name: Installing and Configuring Kubernetes Cluster For Worker Nodes
-   hosts: k8s-nodes
+   hosts: k8snodes
    gather_facts: true
 
    tasks:
@@ -12,7 +12,19 @@
                sed -i s/^SELINUX=permissive/SELINUX=disabled/g /etc/selinux/config
                systemctl disable firewalld
                systemctl stop firewalld
-               modprobe br_netfilter
+               touch /etc/modules-load.d/99-istio-modules.conf
+               cat << EOF > /etc/modules-load.d/99-istio-modules.conf
+               # These modules need to be loaded on boot so that Istio (as required by Kubeflow) runs properly.
+               # See also: https://github.com/istio/istio/issues/23009
+
+               br_netfilter
+               nf_nat
+               xt_REDIRECT
+               xt_owner
+               iptable_nat
+               iptable_mangle
+               iptable_filte
+               EOF
                touch /etc/yum.repos.d/C7.repo
                touch /etc/yum.repos.d/K8s.repo
                mkdir /etc/docker
@@ -144,16 +156,16 @@
        tags: "12"
 
 
- - hosts: k8s-master
+ - hosts: k8smaster
 
    tasks:
      - name: Assinging Worker Node Roles
        shell: |
-               kubectl label node k8s-worker1 node-role.kubernetes.io/worker1=worker1
-               kubectl label node k8s-worker2 node-role.kubernetes.io/worker2=worker2
+               kubectl label node k8sworker1 node-role.kubernetes.io/worker1=worker1
+               kubectl label node k8sworker2 node-role.kubernetes.io/worker2=worker2
        tags: "13"
 
- - hosts: k8s-nodes
+ - hosts: k8snodes
 
    tasks:
 

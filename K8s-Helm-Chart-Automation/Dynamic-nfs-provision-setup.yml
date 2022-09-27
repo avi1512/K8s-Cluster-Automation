@@ -1,6 +1,6 @@
 ---
  - name: Dynamic NFS Storage Provisioning Setup Play
-   hosts: k8s-master
+   hosts: k8smaster
    gather_facts: false
    
    tasks:
@@ -23,13 +23,15 @@
        when: "'helm' in out.stdout"
 
  - name: Installing NFS package on Worker nodes
-   hosts: k8s-nodes
+   hosts: k8snodes
+   gather_facts: false
 
    tasks:
      - command: yum install nfs-utils -y
  
 
- - hosts: k8s-master
+ - hosts: k8smaster
+   gather_facts: false
 
    tasks:
  
@@ -63,7 +65,7 @@
 
      - name: Installing Dynamic NFS Provisioning
        shell: |
-               helm install nfs-storage nfs/nfs-subdir-external-provisioner -n nfs-storage --set nfs.server=k8s-master --set nfs.path=/mnt/kubedata --set storageClass.defaultClass=true > /tmp/nfs.outs
+               helm install nfs-storage nfs/nfs-subdir-external-provisioner -n nfs-storage --set nfs.server=k8smaster --set nfs.path=/mnt/kubedata --set storageClass.defaultClass=true > /tmp/nfs.outs
 
      - name: Verify the Installation
        shell: 

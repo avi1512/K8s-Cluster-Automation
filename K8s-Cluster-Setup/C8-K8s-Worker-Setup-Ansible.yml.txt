@@ -110,8 +110,8 @@
          state: latest
        with_items:
          - docker-ce
-         - kubeadm-1.23.6
-         - kubelet-1.23.6
+         - kubeadm
+         - kubelet
        when: ansible_facts['os_family'] == "RedHat"
        tags: "8"
 
@@ -152,6 +152,8 @@
        shell: |
                echo 1 > /proc/sys/net/bridge/bridge-nf-call-iptables
                echo 1 > /proc/sys/net/bridge/bridge-nf-call-ip6tables
+               sed -i 's/disabled_plugins/#disabled_plugins/g' /etc/containerd/config.toml
+               systemctl restart containerd
                sh /tmp/joincluster.sh > /tmp/join.outs
        tags: "12"
 

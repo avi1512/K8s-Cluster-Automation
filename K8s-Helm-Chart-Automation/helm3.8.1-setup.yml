@@ -1,6 +1,6 @@
 ---
  - name: Helm Play
-   hosts: k8s-master
+   hosts: k8smaster
    gather_facts: false
    
    tasks:

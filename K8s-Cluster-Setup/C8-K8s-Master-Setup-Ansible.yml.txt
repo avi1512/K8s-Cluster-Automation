@@ -23,7 +23,7 @@
                xt_owner
                iptable_nat
                iptable_mangle
-               iptable_filte
+               iptable_filter
                EOF
                touch /etc/yum.repos.d/C7.repo
                touch /etc/yum.repos.d/K8s.repo
@@ -49,6 +49,19 @@
                {
                 "exec-opts": ["native.cgroupdriver=systemd"]
                }
+               EOF
+               touch /etc/modules-load.d/99-istio-modules.conf
+               cat << EOF > /etc/modules-load.d/99-istio-modules.conf
+               # These modules need to be loaded on boot so that Istio (as required by Kubeflow) runs properly.
+               # See also: https://github.com/istio/istio/issues/23009
+
+               br_netfilter
+               nf_nat
+               xt_REDIRECT
+               xt_owner
+               iptable_nat
+               iptable_mangle
+               iptable_filter
                EOF
        when: ansible_facts['os_family'] == "Debian"
        tags: "2"

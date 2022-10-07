@@ -1,0 +1,86 @@
+---
+ - name: User Creation in K8s
+   hosts: k8smaster
+   gather_facts: false
+   vars_prompt:
+   - name: UserName
+     prompt: "Enter Username"
+     private: no
+
+   - name: GroupName
+     prompt: "Enter Groupname"
+     private: no
+
+   - name: Namespace
+     prompt: "Enter Namespace"
+     private: no
+
+   - name: ClusterName
+     prompt: "Enter Clustername"
+     private: no
+
+   - name: ClusterAddress
+     prompt: "Enter ClusterAddress"
+     private: no
+
+   - name: Verbs
+     prompt: "Enter the Verb rules For New User Like (create,delete,update,patch,get,list,watch)"
+     private: no
+
+   - name: Resources
+     prompt: "Enter the Resources For New User Like (pod,deployment,daemonset,statefulset,service)"
+     private: no
+
+
+   tasks:
+
+   - name: Creating Namespace If not exist
+     shell: |
+             kubectl create ns {{Namespace}}
+     when: '"{{Namespace}}" is defined'
+
+
+
+   - name: Generating Private Key For New User
+     shell: |
+             mkdir /tmp/work
+             openssl genrsa -out /tmp/work/{{UserName}}.key 2048
+
+
+
+   - name: Creating CSR (Certificate Signing Request)
+     shell: openssl req -new -key /tmp/work/{{UserName}}.key -out /tmp/work/{{UserName}}.csr -subj "/CN={{UserName}}/O={{GroupName}}"
+
+
+
+   - name: Signing Newuser Certificate With K8s CA (Certificate Authorities)
+     shell: openssl x509 -req -in /tmp/work/{{UserName}}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out /tmp/work/{{UserName}}.crt -days 365
+
+
+
+   - name: Setting up kubeconfig for newuser
+     shell: kubectl --kubeconfig {{UserName}}.kubeconfig config set-cluster {{ClusterName}} --server https://{{ClusterAddress}}:6443 --certificate-authority=/etc/kubernetes/pki/ca.crt
+
+
+
+   - name: Add User in Kubeconfig File
+     shell: kubectl --kubeconfig {{UserName}}.kubeconfig config set-credentials {{UserName}} --client-certificate /tmp/work/{{UserName}}.crt --client-key /tmp/work/{{UserName}}.key
+
+
+
+   - name: Setting Up Context For New User
+     shell: kubectl --kubeconfig {{UserName}}.kubeconfig config set-context {{UserName}}-context --cluster {{ClusterName}} --namespace {{Namespace}} --user {{UserName}}
+
+
+
+   - name: Creating Roles for New User
+     shell: kubectl create role {{UserName}}-roles --verb={{Verbs}} --resource={{Resources}} --namespace {{Namespace}}
+
+
+   - name: Assigning Roles For New User
+     shell: kubectl create rolebinding {{UserName}}-rolebinding --role={{UserName}}-roles --user={{UserName}} --namespace {{Namespace}}
+
+
+   - name: Modifying User Context 
+     shell: |
+             sed -i 's/^current-context: ""/current-context: "{{UserName}}-context"/g' {{UserName}}.kubeconfig

@@ -213,5 +213,16 @@
        tags: "15"
 
      - debug:
-         msg: Cluster is ready to use
+         msg: Control Plane is Ready
        tags: "16"
+
+
+ - hosts: k8smaster
+   tasks:
+     - name: Setup K9s Terminal Dashboard
+       shell: |
+               yum install wget -y
+               cd /tmp/ && wget https://github.com/derailed/k9s/releases/download/v0.26.6/k9s_Linux_x86_64.tar.gz
+               tar -zxvf /tmp/k9s_Linux_x86_64.tar.gz
+               chmod +x /tmp/k9s && mv /tmp/k9s /usr/bin/k9s
+       tags: "17"

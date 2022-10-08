@@ -1,6 +1,6 @@
 ---
  - name: User Creation in K8s
-   hosts: k8smaster
+   hosts: k8smaster_bridge_wifi_adapter
    gather_facts: false
    vars_prompt:
    - name: UserName
@@ -43,33 +43,33 @@
 
    - name: Generating Private Key For New User
      shell: |
-             mkdir /tmp/work
-             openssl genrsa -out /tmp/work/{{UserName}}.key 2048
+             mkdir -p /etc/kubernetes/users/certificates
+             openssl genrsa -out /etc/kubernetes/users/certificates/{{UserName}}.key 2048
 
 
 
    - name: Creating CSR (Certificate Signing Request)
-     shell: openssl req -new -key /tmp/work/{{UserName}}.key -out /tmp/work/{{UserName}}.csr -subj "/CN={{UserName}}/O={{GroupName}}"
+     shell: openssl req -new -key /etc/kubernetes/users/certificates/{{UserName}}.key -out /etc/kubernetes/users/certificates/{{UserName}}.csr -subj "/CN={{UserName}}/O={{GroupName}}"
 
 
 
    - name: Signing Newuser Certificate With K8s CA (Certificate Authorities)
-     shell: openssl x509 -req -in /tmp/work/{{UserName}}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out /tmp/work/{{UserName}}.crt -days 365
+     shell: openssl x509 -req -in /etc/kubernetes/users/certificates/{{UserName}}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out /etc/kubernetes/users/certificates/{{UserName}}.crt -days 365
 
 
 
    - name: Setting up kubeconfig for newuser
-     shell: kubectl --kubeconfig {{UserName}}.kubeconfig config set-cluster {{ClusterName}} --server https://{{ClusterAddress}}:6443 --certificate-authority=/etc/kubernetes/pki/ca.crt
+     shell: kubectl --kubeconfig /etc/kubernetes/users/certificates/{{UserName}}.kubeconfig config set-cluster {{ClusterName}} --server https://{{ClusterAddress}}:6443 --certificate-authority=/etc/kubernetes/pki/ca.crt
 
 
 
    - name: Add User in Kubeconfig File
-     shell: kubectl --kubeconfig {{UserName}}.kubeconfig config set-credentials {{UserName}} --client-certificate /tmp/work/{{UserName}}.crt --client-key /tmp/work/{{UserName}}.key
+     shell: kubectl --kubeconfig /etc/kubernetes/users/certificates/{{UserName}}.kubeconfig config set-credentials {{UserName}} --client-certificate /etc/kubernetes/users/certificates/{{UserName}}.crt --client-key /etc/kubernetes/users/certificates/{{UserName}}.key
 
 
 
    - name: Setting Up Context For New User
-     shell: kubectl --kubeconfig {{UserName}}.kubeconfig config set-context {{UserName}}-context --cluster {{ClusterName}} --namespace {{Namespace}} --user {{UserName}}
+     shell: kubectl --kubeconfig /etc/kubernetes/users/certificates/{{UserName}}.kubeconfig config set-context {{UserName}}-context --cluster {{ClusterName}} --namespace {{Namespace}} --user {{UserName}}
 
 
 
@@ -83,4 +83,4 @@
 
    - name: Modifying User Context 
      shell: |
-             sed -i 's/^current-context: ""/current-context: "{{UserName}}-context"/g' {{UserName}}.kubeconfig
+             sed -i 's/^current-context: ""/current-context: "{{UserName}}-context"/g' /etc/kubernetes/users/certificates/{{UserName}}.kubeconfig

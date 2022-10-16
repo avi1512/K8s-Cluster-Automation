@@ -97,9 +97,18 @@
        when: ansible_facts['os_family'] == "Debian"
        tags: "5"
 
+
+     - name: Exclude Conflict Version Of Kubelet
+       shell: |
+               echo 'exclude=kubelet-1.18.4-0 kubelet-1.17.7-0 kubelet-1.16.11-0' >> /etc/yum.conf
+       tags: "6"
+
+
      - name: Adding docker repo for Redhat 8
        shell: |
                dnf config-manager --add-repo=https://download.docker.com/linux/centos/docker-ce.repo
+       tags: "7"  
+
 
      - name: Adding K8s repo for RedHat 8
        blockinfile:
@@ -115,7 +124,8 @@
                 gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg
                        https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
        when: ansible_facts['os_family'] == "RedHat"
-       tags: "7"
+       tags: "8"
+
 
      - name: Installing kubernetes and docker packages for RedHat 8
        yum:
@@ -126,7 +136,8 @@
          - kubeadm
          - kubelet
        when: ansible_facts['os_family'] == "RedHat"
-       tags: "8"
+       tags: "9"
+
 
      - name: Installing Kubernetes and docker packages for Ubuntu
        apt:
@@ -137,7 +148,8 @@
          - kubeadm
          - kubelet
        when: ansible_facts['os_family'] == "Debian"
-       tags: "9"
+       tags: "10"
+
 
      - name: Kubernetes and docker service starting for RedHat 8
        service:
@@ -148,7 +160,8 @@
          - docker
          - kubelet
        when: ansible_facts['os_family'] == "RedHat"
-       tags: "10"
+       tags: "11"
+
 
      - name: Kubernetes and docker service starting for Ubuntu
        service:
@@ -159,7 +172,8 @@
          - docker
          - kubelet
        when: ansible_facts['os_family'] == "Debian"
-       tags: "11"
+       tags: "12"
+
 
      - name: Joining worker nodes to Kubernetes Master using API token
        shell: |
@@ -168,7 +182,7 @@
                sed -i 's/disabled_plugins/#disabled_plugins/g' /etc/containerd/config.toml
                systemctl restart containerd
                sh /tmp/joincluster.sh > /tmp/join.outs
-       tags: "12"
+       tags: "13"
 
 
  - hosts: k8smaster
@@ -178,7 +192,8 @@
        shell: |
                kubectl label node k8sworker1 node-role.kubernetes.io/worker1=worker1
                kubectl label node k8sworker2 node-role.kubernetes.io/worker2=worker2
-       tags: "13"
+       tags: "14"
+
 
  - hosts: k8snodes
 
@@ -186,4 +201,4 @@
 
      - debug:
          msg: Kubernetes Worker Configured Successfully ensure node is connected to master
-       tags: "14"
+       tags: "15"

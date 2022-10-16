@@ -99,11 +99,18 @@
        when: ansible_facts['os_family'] == "Debian"
        tags: "5"
 
+  
+     - name: Exclude Conflict Version Of Kubelet
+       shell: |
+               echo 'exclude=kubelet-1.18.4-0 kubelet-1.17.7-0 kubelet-1.16.11-0' >> /etc/yum.conf
+       tags: "6"
+
      
      - name: Adding Docker repo for RedHat 8
        shell: |
                dnf config-manager --add-repo=https://download.docker.com/linux/centos/docker-ce.repo
-               
+       tags: "7"               
+    
 
      - name: Adding K8s repo for RedHat 8
        blockinfile:
@@ -119,7 +126,8 @@
                 gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg
                        https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
        when: ansible_facts['os_family'] == "RedHat"
-       tags: "7"
+       tags: "8"
+
 
      - name: Installing kubernetes and docker packages for RedHat 8
        yum:
@@ -131,7 +139,8 @@
          - kubectl
          - kubelet
        when: ansible_facts['os_family'] == "RedHat"
-       tags: "8"
+       tags: "9"
+
 
      - name: Installing Kubernetes and docker packages for Ubuntu
        apt:
@@ -144,7 +153,8 @@
          - kubelet
          - sshpass
        when: ansible_facts['os_family'] == "Debian"
-       tags: "9"
+       tags: "10"
+
 
      - name: Configuring Kubernetes Cluster for RedHat 8
        shell: |
@@ -163,7 +173,8 @@
                #Kubernetes Network Plugins CNI (Calico)
                kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
        when: ansible_facts['os_family'] == "RedHat"
-       tags: "10"
+       tags: "11"
+
 
      - name: Configuring Kubernetes Cluster for Ubuntu
        shell: |
@@ -178,13 +189,14 @@
                #Kubernetes Network Plugins CNI (Calico)
                kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
        when: ansible_facts['os_family'] == "Debian"
-       tags: "11"
+       tags: "12"
+
 
 
      - name: Generate API token for Kubernetes worker nodes to join K8S master
        shell: |
                kubeadm token create --print-join-command > /etc/kubernetes/joincluster.sh 2>/dev/null
-       tags: "12"
+       tags: "13"
 
 
  - hosts: k8smaster
@@ -194,7 +206,8 @@
          src: /etc/kubernetes/joincluster.sh
          dest: /tmp/
          flat: yes
-       tags: "13"
+       tags: "14"
+
 
  - hosts: k8snodes
    tasks:
@@ -202,7 +215,8 @@
        copy:
          src: /tmp/joincluster.sh
          dest: /tmp/
-       tags: "14"
+       tags: "15"
+
 
  - hosts: localhost
    tasks:
@@ -210,10 +224,6 @@
        file:
          path: /tmp/joincluster.sh
          state: absent
-       tags: "15"
-
-     - debug:
-         msg: Control Plane is Ready
        tags: "16"
 
 
@@ -226,3 +236,9 @@
                tar -zxvf /tmp/k9s_Linux_x86_64.tar.gz
                chmod +x /tmp/k9s && mv /tmp/k9s /usr/bin/k9s
        tags: "17"
+
+
+
+     - debug:
+         msg: Control Plane is Ready..!! Please Run the Worker Setup Playbook
+       tags: "18"

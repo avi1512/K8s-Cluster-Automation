@@ -1,6 +1,6 @@
 ---
  - name: User Creation in K8s
-   hosts: k8smaster_bridge_wifi_adapter
+   hosts: k8smaster
    gather_facts: false
    vars_prompt:
    - name: UserName
@@ -24,11 +24,11 @@
      private: no
 
    - name: Verbs
-     prompt: "Enter the Verb rules For New User Like (create,delete,update,patch,get,list,watch)"
+     prompt: "Enter the API Verb rules For New User Like (create,delete,update,patch,get,list,watch)"
      private: no
 
    - name: Resources
-     prompt: "Enter the Resources For New User Like (pod,deployment,daemonset,statefulset,service)"
+     prompt: "Enter the API Resources For New User Like (pod,deployment,daemonset,statefulset,service)"
      private: no
 
 

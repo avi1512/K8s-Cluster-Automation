@@ -1,0 +1,45 @@
+---
+ - name: Metallb LoadBalancer Setup Play
+   hosts: k8smaster
+   gather_facts: false
+
+   vars_prompt:
+   - name: ips
+     prompt: "Enter Your Netwokr IP-range (Like 10.0.0.10-10.0.0.20, 172.0.0.10-172.168.0.20, 192.168.0.10-192.168.0.20"
+     private: no
+   
+   tasks:
+     - name: Installing MetalLB Through Manifest
+       shell:
+             |
+              touch /tmp/metallb-config.yaml
+              kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.7/config/manifests/metallb-native.yaml > /tmp/metallb.outs
+              sleep 30
+
+     - name: Configuring MetalLB
+       blockinfile:
+         dest: /tmp/metallb-config.yaml
+         block:
+               |
+                apiVersion: metallb.io/v1beta1
+                kind: IPAddressPool
+                metadata:
+                  name: first-pool
+                  namespace: metallb-system
+                spec:
+                  addresses:
+                  - {{ ips }}
+                ---
+                apiVersion: metallb.io/v1beta1
+                kind: L2Advertisement
+                metadata:
+                  name: example
+                  namespace: metallb-system
+                spec:
+                  ipAddressPools:
+                  - first-pool
+
+     - name: Deploying MetalLB IPAddressPool and L2Advertisement
+       shell:
+             |
+              kubectl apply -f /tmp/metallb-config.yaml 

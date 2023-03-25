@@ -171,7 +171,7 @@
                #Kubernetes Network Plugins CNI (Flannel)
                #kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
                #Kubernetes Network Plugins CNI (Calico)
-               kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+               kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml
        when: ansible_facts['os_family'] == "RedHat"
        tags: "11"
 

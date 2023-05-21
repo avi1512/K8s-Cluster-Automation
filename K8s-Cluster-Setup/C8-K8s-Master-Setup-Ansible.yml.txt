@@ -25,14 +25,12 @@
                iptable_mangle
                iptable_filter
                EOF
-               touch /etc/yum.repos.d/C7.repo
+               #### Creating Repo file for K8S ####
                touch /etc/yum.repos.d/K8s.repo
-               mkdir /etc/docker
-               touch /etc/docker/daemon.json
-               cat << EOF > /etc/docker/daemon.json
-               {
-                "exec-opts": ["native.cgroupdriver=systemd"]
-               }
+               #### Containerd Modules ####
+               cat <<EOF | sudo tee /etc/modules-load.d/containerd.conf
+               overlay
+               br_netfilter
                EOF
        when: ansible_facts['os_family'] == "RedHat"
        tags: "1"
@@ -43,13 +41,6 @@
                swapoff -av
                sed -i '/\bswap\b/ s/^/#/' /etc/fstab
                ufw disable
-               mkdir /etc/docker
-               touch /etc/docker/daemon.json
-               cat << EOF > /etc/docker/daemon.json
-               {
-                "exec-opts": ["native.cgroupdriver=systemd"]
-               }
-               EOF
                touch /etc/modules-load.d/99-istio-modules.conf
                cat << EOF > /etc/modules-load.d/99-istio-modules.conf
                # These modules need to be loaded on boot so that Istio (as required by Kubeflow) runs properly.
@@ -63,6 +54,11 @@
                iptable_mangle
                iptable_filter
                EOF
+               #### Containerd Modules ####
+               cat <<EOF | sudo tee /etc/modules-load.d/containerd.conf
+               overlay
+               br_netfilter
+               EOF
        when: ansible_facts['os_family'] == "Debian"
        tags: "2"
 
@@ -72,8 +68,7 @@
        async: 1
        poll: 0
        tags: "3"
-#       when: ansible_facts['os_family'] == "RedHat"
-#       when: ansible_facts['os_family'] == "Debian"
+
 
 
      - name: Waiting for server back online
@@ -83,8 +78,7 @@
          delay: 5
          timeout: 300
        tags: "4"
-#       when: ansible_facts['os_family'] == "RedHat"
-#       when: ansible_facts['os_family'] == "Debian"
+
 
 
      - name: Adding Docker & K8s repo for Ubuntu
@@ -129,12 +123,12 @@
        tags: "8"
 
 
-     - name: Installing kubernetes and docker packages for RedHat 8
+     - name: Installing kubernetes and Container runtime packages for RedHat 8
        yum:
          name: "{{ item }}"
          state: latest
        with_items:
-         - docker-ce
+         - containerd
          - kubeadm
          - kubectl
          - kubelet
@@ -142,28 +136,53 @@
        tags: "9"
 
 
-     - name: Installing Kubernetes and docker packages for Ubuntu
+     - name: Installing Kubernetes and Container runtime packages for Ubuntu
        apt:
          name: "{{ item }}"
          state: latest
        with_items:
-         - docker-ce
+         - containerd
          - kubeadm
          - kubectl
          - kubelet
-         - sshpass
        when: ansible_facts['os_family'] == "Debian"
        tags: "10"
+
+   
+     - name: Configuring Containerd
+       shell: |
+               modprobe overlay
+               modprobe br_netfilter
+               cat <<EOF | sudo tee /etc/sysctl.d/99-kubernetes-cri.conf
+                net.bridge.bridge-nf-call-iptables = 1
+                net.ipv4.ip_forward = 1
+                net.bridge.bridge-nf-call-ip6tables = 1
+               EOF
+               sysctl –system
+               mkdir -p /etc/containerd
+               containerd config default | sudo tee /etc/containerd/config.toml
+               sed -i 's/disabled_plugins/#disabled_plugins/g' /etc/containerd/config.toml
+               cat << EOF > /etc/crictl.yaml
+                runtime-endpoint: unix:///run/containerd/containerd.sock
+                image-endpoint: unix:///run/containerd/containerd.sock
+                timeout: 2
+                debug: true
+                pull-image-on-create: false
+                disable-pull-on-run: false
+               EOF
+               systemctl enable containerd
+               systemctl restart containerd
+       tags: "11"
+
 
 
      - name: Configuring Kubernetes Cluster for RedHat 8
        shell: |
-               systemctl enable docker kubelet
-               systemctl start docker kubelet
-               sed -i 's/disabled_plugins/#disabled_plugins/g' /etc/containerd/config.toml
-               systemctl restart containerd
+               systemctl enable kubelet
+               systemctl start kubelet
                echo 1 > /proc/sys/net/bridge/bridge-nf-call-iptables
                echo 1 > /proc/sys/net/bridge/bridge-nf-call-ip6tables
+               echo 1 > /proc/sys/net/ipv4/ip_forward
                kubeadm init --pod-network-cidr=10.244.0.0/16 --ignore-preflight-errors=all > /tmp/kube.outs
                mkdir -p $HOME/.kube
                cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
@@ -173,7 +192,7 @@
                #Kubernetes Network Plugins CNI (Calico)
                kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml
        when: ansible_facts['os_family'] == "RedHat"
-       tags: "11"
+       tags: "12"
 
 
      - name: Configuring Kubernetes Cluster for Ubuntu
@@ -189,14 +208,14 @@
                #Kubernetes Network Plugins CNI (Calico)
                kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
        when: ansible_facts['os_family'] == "Debian"
-       tags: "12"
+       tags: "13"
 
 
 
      - name: Generate API token for Kubernetes worker nodes to join K8S master
        shell: |
                kubeadm token create --print-join-command > /etc/kubernetes/joincluster.sh 2>/dev/null
-       tags: "13"
+       tags: "14"
 
 
  - hosts: k8smaster
@@ -206,7 +225,7 @@
          src: /etc/kubernetes/joincluster.sh
          dest: /tmp/
          flat: yes
-       tags: "14"
+       tags: "15"
 
 
  - hosts: k8snodes
@@ -215,7 +234,7 @@
        copy:
          src: /tmp/joincluster.sh
          dest: /tmp/
-       tags: "15"
+       tags: "16"
 
 
  - hosts: localhost
@@ -224,7 +243,7 @@
        file:
          path: /tmp/joincluster.sh
          state: absent
-       tags: "16"
+       tags: "17"
 
 
  - hosts: k8smaster
@@ -235,10 +254,10 @@
                cd /tmp/ && wget https://github.com/derailed/k9s/releases/download/v0.26.6/k9s_Linux_x86_64.tar.gz
                tar -zxvf /tmp/k9s_Linux_x86_64.tar.gz
                chmod +x /tmp/k9s && mv /tmp/k9s /usr/bin/k9s
-       tags: "17"
+       tags: "18"
 
 
 
      - debug:
          msg: Control Plane is Ready..!! Please Run the Worker Setup Playbook
-       tags: "18"
+       tags: "19"

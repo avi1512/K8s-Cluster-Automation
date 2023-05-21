@@ -25,14 +25,12 @@
                iptable_mangle
                iptable_filter
                EOF
-               touch /etc/yum.repos.d/C7.repo
+               #### Creating Repo file for K8S ####
                touch /etc/yum.repos.d/K8s.repo
-               mkdir /etc/docker
-               touch /etc/docker/daemon.json
-               cat << EOF > /etc/docker/daemon.json
-               {
-                "exec-opts": ["native.cgroupdriver=systemd"]
-               }
+               #### Containerd Modules ####
+               cat <<EOF | sudo tee /etc/modules-load.d/containerd.conf
+               overlay
+               br_netfilter
                EOF
        when: ansible_facts['os_family'] == "RedHat"
        tags: "1"
@@ -43,13 +41,6 @@
                swapoff -av
                sed -i '/\bswap\b/ s/^/#/' /etc/fstab
                ufw disable
-               mkdir /etc/docker
-               touch /etc/docker/daemon.json
-               cat << EOF > /etc/docker/daemon.json
-               {
-                "exec-opts": ["native.cgroupdriver=systemd"]
-               }
-               EOF
                touch /etc/modules-load.d/99-istio-modules.conf
                cat << EOF > /etc/modules-load.d/99-istio-modules.conf
                # These modules need to be loaded on boot so that Istio (as required by Kubeflow) runs properly.
@@ -63,6 +54,11 @@
                iptable_mangle
                iptable_filter
                EOF
+               #### Containerd Modules ####
+               cat <<EOF | sudo tee /etc/modules-load.d/containerd.conf
+               overlay
+               br_netfilter
+               EOF
        when: ansible_facts['os_family'] == "Debian"
        tags: "2"
 
@@ -72,7 +68,6 @@
        async: 1
        poll: 0
        tags: "3"
-#       when: ansible_facts['os_family'] == "RedHat"
 
 
      - name: Waiting for server back online
@@ -82,7 +77,6 @@
          delay: 5
          timeout: 300
        tags: "4"
-#       when: ansible_facts['os_family'] == "RedHat"
 
 
      - name: Adding Docker & K8s repo for Ubuntu
@@ -127,62 +121,88 @@
        tags: "8"
 
 
-     - name: Installing kubernetes and docker packages for RedHat 8
+     - name: Installing kubernetes and Container runtime packages for RedHat 8
        yum:
          name: "{{ item }}"
          state: latest
        with_items:
-         - docker-ce
+         - containerd
          - kubeadm
          - kubelet
        when: ansible_facts['os_family'] == "RedHat"
        tags: "9"
 
 
-     - name: Installing Kubernetes and docker packages for Ubuntu
+     - name: Installing Kubernetes and Container runtime packages for Ubuntu
        apt:
          name: "{{ item }}"
          state: latest
        with_items:
-         - docker-ce
+         - containerd
          - kubeadm
          - kubelet
        when: ansible_facts['os_family'] == "Debian"
        tags: "10"
 
 
-     - name: Kubernetes and docker service starting for RedHat 8
+     - name: Kubernetes and containerd service starting for RedHat 8
        service:
          name: "{{ item }}"
          state: started
          enabled: yes
        loop:
-         - docker
+         - containerd
          - kubelet
        when: ansible_facts['os_family'] == "RedHat"
        tags: "11"
 
 
-     - name: Kubernetes and docker service starting for Ubuntu
+     - name: Kubernetes and containerd service starting for Ubuntu
        service:
          name: "{{ item }}"
          state: started
          enabled: yes
        loop:
-         - docker
+         - containerd
          - kubelet
        when: ansible_facts['os_family'] == "Debian"
        tags: "12"
+
+
+     - name: Configuring Containerd
+       shell: |
+               modprobe overlay
+               modprobe br_netfilter
+               cat <<EOF | sudo tee /etc/sysctl.d/99-kubernetes-cri.conf
+                net.bridge.bridge-nf-call-iptables = 1
+                net.ipv4.ip_forward = 1
+                net.bridge.bridge-nf-call-ip6tables = 1
+               EOF
+               sysctl –system
+               mkdir -p /etc/containerd
+               containerd config default | sudo tee /etc/containerd/config.toml
+               sed -i 's/disabled_plugins/#disabled_plugins/g' /etc/containerd/config.toml
+               cat << EOF > /etc/crictl.yaml
+                runtime-endpoint: unix:///run/containerd/containerd.sock
+                image-endpoint: unix:///run/containerd/containerd.sock
+                timeout: 2
+                debug: true
+                pull-image-on-create: false
+                disable-pull-on-run: false
+               EOF
+               systemctl enable containerd
+               systemctl restart containerd
+       tags: "13"
+
 
 
      - name: Joining worker nodes to Kubernetes Master using API token
        shell: |
                echo 1 > /proc/sys/net/bridge/bridge-nf-call-iptables
                echo 1 > /proc/sys/net/bridge/bridge-nf-call-ip6tables
-               sed -i 's/disabled_plugins/#disabled_plugins/g' /etc/containerd/config.toml
-               systemctl restart containerd
+               echo 1 > /proc/sys/net/ipv4/ip_forward
                sh /tmp/joincluster.sh > /tmp/join.outs
-       tags: "13"
+       tags: "14"
 
 
  - hosts: k8smaster
@@ -192,7 +212,7 @@
        shell: |
                kubectl label node k8sworker1 node-role.kubernetes.io/worker1=worker1
                kubectl label node k8sworker2 node-role.kubernetes.io/worker2=worker2
-       tags: "14"
+       tags: "15"
 
 
  - hosts: k8snodes
@@ -201,4 +221,4 @@
 
      - debug:
          msg: Kubernetes Worker Configured Successfully ensure node is connected to master
-       tags: "15"
+       tags: "16"
